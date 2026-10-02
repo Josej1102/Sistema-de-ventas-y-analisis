@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Modelo de base de datos - Sistema de ventas</title>
+<style>
+  body {
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    max-width: 1100px;
+    margin: 40px auto;
+    padding: 0 24px;
+    background: #121212;
+    color: #ececea;
+    line-height: 1.7;
+  }
+  h1 { font-size: 26px; font-weight: 600; margin-bottom: 4px; color: #ffffff; }
+  .subtitle { color: #a8a69c; font-size: 14px; margin-bottom: 32px; }
+  .diagram-card {
+    border: 1px solid #3a3a38;
+    border-radius: 12px;
+    padding: 28px;
+    background: #1a1a19;
+    overflow-x: auto;
+  }
+  .legend {
+    margin-top: 28px;
+    font-size: 14px;
+    color: #cfcdc3;
+    border-top: 1px solid #3a3a38;
+    padding-top: 20px;
+  }
+  .legend strong { color: #ffffff; }
+  .legend ul { padding-left: 20px; }
+  .legend li { margin-bottom: 6px; }
+  .legend code {
+    background: #262624;
+    color: #f2c078;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+  footer { margin-top: 40px; font-size: 12px; color: #6f6e68; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+</head>
+<body>
+
+<h1>Modelo de base de datos - Sistema de ventas</h1>
+<p class="subtitle">Diagrama entidad-relación · 12 tablas · generado a partir de modelo_bd_sistema_ventas.sql</p>
+
+<div class="diagram-card">
+<pre class="mermaid">
+erDiagram
+  CATEGORIAS ||--o{ PRODUCTOS : clasifica
+  PROVEEDORES ||--o{ PRODUCTO_PROVEEDOR : ofrece
+  PRODUCTOS ||--o{ PRODUCTO_PROVEEDOR : es_surtido_por
+  CLIENTES ||--o{ VENTAS : realiza
+  EMPLEADOS ||--o{ VENTAS : atiende
+  ESTADOS_VENTA ||--o{ VENTAS : define
+  VENTAS ||--o{ DETALLE_VENTAS : contiene
+  PRODUCTOS ||--o{ DETALLE_VENTAS : incluye
+  VENTAS ||--o{ PAGOS : recibe
+  METODOS_PAGO ||--o{ PAGOS : usa
+  ESTADOS_PAGO ||--o{ PAGOS : define
+
+  CATEGORIAS {
+    int id_categoria PK
+    string nombre
+    string descripcion
+    boolean estado
+    datetime fecha_creacion
+  }
+  PROVEEDORES {
+    int id_proveedor PK
+    string nombre
+    string contacto
+    string telefono
+    string email
+    string direccion
+    boolean estado
+  }
+  PRODUCTOS {
+    int id_producto PK
+    string codigo_sku
+    string nombre
+    string descripcion
+    int id_categoria FK
+    decimal precio_compra
+    decimal precio_venta
+    int stock
+    int stock_minimo
+    boolean estado
+    datetime fecha_creacion
+  }
+  PRODUCTO_PROVEEDOR {
+    int id_producto PK_FK
+    int id_proveedor PK_FK
+    decimal precio_compra
+    int tiempo_entrega_dias
+    boolean es_proveedor_principal
+    datetime fecha_asociacion
+  }
+  CLIENTES {
+    int id_cliente PK
+    string tipo_documento
+    string numero_documento
+    string nombre
+    string apellido
+    string telefono
+    string email
+    string direccion
+    string ciudad
+    datetime fecha_registro
+    boolean estado
+  }
+  EMPLEADOS {
+    int id_empleado PK
+    string nombre
+    string apellido
+    string cargo
+    string telefono
+    string email
+    date fecha_contratacion
+    boolean estado
+  }
+  METODOS_PAGO {
+    int id_metodo_pago PK
+    string nombre
+    string descripcion
+  }
+  ESTADOS_VENTA {
+    int id_estado_venta PK
+    string nombre
+  }
+  ESTADOS_PAGO {
+    int id_estado_pago PK
+    string nombre
+  }
+  VENTAS {
+    int id_venta PK
+    string numero_factura
+    int id_cliente FK
+    int id_empleado FK
+    int id_estado_venta FK
+    datetime fecha_venta
+    decimal subtotal
+    decimal impuesto
+    decimal descuento
+    decimal total
+  }
+  DETALLE_VENTAS {
+    int id_detalle PK
+    int id_venta FK
+    int id_producto FK
+    int cantidad
+    decimal precio_unitario
+    decimal descuento
+    decimal subtotal
+  }
+  PAGOS {
+    int id_pago PK
+    int id_venta FK
+    int id_metodo_pago FK
+    int id_estado_pago FK
+    decimal monto
+    datetime fecha_pago
+    string referencia
+  }
+</pre>
+</div>
+
+<div class="legend">
+  <strong>Notas del modelo:</strong>
+  <ul>
+    <li><code>PRODUCTO_PROVEEDOR</code> resuelve la relación muchos a muchos entre productos y proveedores (un producto puede tener varios proveedores con distinto costo).</li>
+    <li><code>PAGOS</code> está separado de <code>VENTAS</code> para permitir pagos divididos o parciales por venta.</li>
+    <li><code>ESTADOS_VENTA</code> y <code>ESTADOS_PAGO</code> son catálogos: evitan valores de texto inconsistentes (ej. "Pagada" vs "pagada").</li>
+    <li><code>VENTAS.total</code> se mantiene sincronizado automáticamente por triggers cada vez que cambia un <code>DETALLE_VENTAS</code>.</li>
+  </ul>
+</div>
+
+<footer>Generado a partir del script SQL del sistema de ventas.</footer>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: "dark",
+    themeVariables: {
+      background: "#1a1a19",
+      primaryColor: "#262624",
+      primaryTextColor: "#ececea",
+      primaryBorderColor: "#5f5e5a",
+      lineColor: "#a8a69c",
+      secondaryColor: "#1a1a19",
+      tertiaryColor: "#1a1a19",
+      fontSize: "14px"
+    },
+    er: { fontSize: 14 }
+  });
+</script>
+
+</body>
+</html>
