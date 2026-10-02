@@ -1,0 +1,1046 @@
+from pathlib import Path
+from datetime import datetime
+
+import pandas as pd
+
+
+# RUTAS
+
+BASE_DIR = Path(__file__).resolve().parents[2]
+
+RAW_DIR = BASE_DIR / "data" / "raw"
+PROCESSED_DIR = BASE_DIR / "data" / "processed"
+
+PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# CONFIGURACIÓN
+
+# Los datos posteriores a esta fecha no se consideran
+# parte del período histórico disponible para el análisis.
+FECHA_CORTE = pd.Timestamp("2026-09-15")
+
+
+# ============================================================
+# CARGA DE DATOS
+# ============================================================
+
+def cargar_csv(nombre_archivo):
+    """
+    Carga un archivo CSV desde data/raw.
+    """
+
+    ruta = RAW_DIR / nombre_archivo
+
+    try:
+        df = pd.read_csv(
+            ruta,
+            sep=None,
+            engine="python",
+            encoding="utf-8"
+        )
+
+        print(f"Cargado: {nombre_archivo} ({len(df)} filas)")
+
+        return df
+
+    except UnicodeDecodeError:
+
+        df = pd.read_csv(
+            ruta,
+            sep=None,
+            engine="python",
+            encoding="latin-1"
+        )
+
+        print(f"Cargado: {nombre_archivo} ({len(df)} filas)")
+
+        return df
+
+    except Exception as error:
+
+        print(f"Error cargando {nombre_archivo}: {error}")
+
+        return None
+
+
+# LIMPIEZA GENERAL DE TEXTOS
+
+def limpiar_textos(df):
+    
+    columnas_texto = df.select_dtypes(include=["object"]).columns
+
+    for columna in columnas_texto:
+
+        df[columna] = df[columna].astype("string").str.strip()
+
+    return df
+
+# CONVERTIR A TEXTO
+
+def convertir_a_texto(df, columnas):
+    
+    for columna in columnas:
+        
+        if columna in df.columns:
+            
+            df[columna] = df[columna].astype(str)
+    
+    return df
+
+
+# CONVERSIÓN DE FECHAS
+
+def convertir_fechas(df, columnas):
+
+    for columna in columnas:
+
+        if columna in df.columns:
+
+            df[columna] = pd.to_datetime(
+                df[columna],
+                errors="coerce"
+            )
+
+    return df
+
+
+# LIMPIEZA DE TIPOS NUMÉRICOS
+
+# def convertir_numericos(df, columnas):
+#     """
+#     Convierte columnas numéricas a tipos numéricos.
+#     """
+
+#     for columna in columnas:
+
+#         if columna in df.columns:
+
+#             df[columna] = pd.to_numeric(
+#                 df[columna],
+#                 errors="coerce"
+#             )
+
+#     return df
+
+
+# ============================================================
+# CARGAR TODAS LAS TABLAS
+# ============================================================
+
+def cargar_tablas():
+
+    archivos = {
+        "categorias": "categorias_raw.csv",
+        "clientes": "clientes_raw.csv",
+        "compras": "compras_raw.csv",
+        "detalle_compras": "detalle_compras_raw.csv",
+        "detalle_ventas": "detalle_ventas_raw.csv",
+        "empleados": "empleados_raw.csv",
+        "estados_pago": "estados_pago_raw.csv",
+        "estados_venta": "estados_venta_raw.csv",
+        "metodos_pago": "metodos_pago_raw.csv",
+        "pagos": "pagos_raw.csv",
+        "producto_proveedor": "producto_proveedor_raw.csv",
+        "productos": "productos_raw.csv",
+        "proveedores": "proveedores_raw.csv",
+        "ventas": "ventas_raw.csv"
+    }
+
+    tablas = {}
+
+    for nombre, archivo in archivos.items():
+
+        df = cargar_csv(archivo)
+
+        if df is not None:
+            tablas[nombre] = df
+
+    return tablas
+
+
+# LIMPIEZA DE TABLAS
+
+def limpiar_tablas(tablas):
+
+    # CATEGORIAS
+
+    if "categorias" in tablas:
+
+        df = tablas["categorias"]
+
+        df = limpiar_textos(df)
+
+        df = convertir_fechas(
+            df,
+            ["fecha_creacion"]
+        )
+
+        tablas["categorias"] = df
+
+
+    # CLIENTES
+
+    if "clientes" in tablas:
+
+        df = tablas["clientes"]
+
+        df = convertir_a_texto(
+            df,
+            [
+                "numero_documento",
+                "telefono"
+            ]
+        )
+        
+        df = limpiar_textos(df)
+
+        df = convertir_fechas(
+            df,
+            ["fecha_registro"]
+        )
+
+        tablas["clientes"] = df
+
+
+    # EMPLEADOS
+
+    if "empleados" in tablas:
+
+        df = tablas["empleados"]
+
+        df = convertir_a_texto(
+            df,
+            [
+                "telefono"
+            ]
+        )
+        
+        df = limpiar_textos(df)
+
+        df = convertir_fechas(
+            df,
+            ["fecha_contratacion"]
+        )
+        
+        if "password_hash" in df.columns:
+
+            df = df.drop(
+                columns=["password_hash"]
+            )
+
+        tablas["empleados"] = df
+
+
+    # PROVEEDORES
+
+    if "proveedores" in tablas:
+
+        df = tablas["proveedores"]
+
+        df = convertir_a_texto(
+            df,
+            [
+                "telefono"
+            ]
+        )
+        
+        df = limpiar_textos(df)
+
+        tablas["proveedores"] = df
+
+
+    # PRODUCTOS
+
+    if "productos" in tablas:
+
+        df = tablas["productos"]
+
+        df = limpiar_textos(df)
+
+        df = convertir_fechas(
+            df,
+            ["fecha_creacion"]
+        )
+
+        tablas["productos"] = df
+
+
+    # PRODUCTO_PROVEEDOR
+
+    if "producto_proveedor" in tablas:
+
+        df = tablas["producto_proveedor"]
+
+        df = limpiar_textos(df)
+
+        df = convertir_fechas(
+            df,
+            ["fecha_asociacion"]
+        )
+
+        tablas["producto_proveedor"] = df
+
+
+    # VENTAS
+
+    if "ventas" in tablas:
+
+        df = tablas["ventas"]
+
+        df = convertir_fechas(
+            df,
+            ["fecha_venta"]
+        )
+
+        tablas["ventas"] = df
+
+
+    # PAGOS
+
+    if "pagos" in tablas:
+
+        df = tablas["pagos"]
+
+        df = limpiar_textos(df)
+
+        df = convertir_fechas(
+            df,
+            ["fecha_pago"]
+        )
+
+        tablas["pagos"] = df
+
+
+    # COMPRAS
+
+    if "compras" in tablas:
+
+        df = tablas["compras"]
+
+        df = convertir_fechas(
+            df,
+            ["fecha_compra"]
+        )
+
+        tablas["compras"] = df
+
+    return tablas
+
+
+# ELIMINAR REGISTROS FUTUROS
+
+def eliminar_futuros(tablas):
+
+    print("\n" + "=" * 60)
+    print("REVISIÓN DE FECHAS FUTURAS")
+    print("=" * 60)
+
+    # VENTAS FUTURAS
+
+    if "ventas" in tablas:
+
+        ventas = tablas["ventas"]
+
+        mascara = ventas["fecha_venta"] > FECHA_CORTE
+
+        cantidad = mascara.sum()
+
+        if cantidad > 0:
+
+            ids_ventas = ventas.loc[
+                mascara,
+                "id_venta"
+            ].tolist()
+
+            print(
+                f"Ventas futuras eliminadas: {cantidad}"
+            )
+
+            tablas["ventas"] = ventas.loc[
+                ~mascara
+            ].copy()
+
+            # Eliminar detalles relacionados
+            if "detalle_ventas" in tablas:
+
+                tablas["detalle_ventas"] = (
+                    tablas["detalle_ventas"]
+                    [
+                        ~tablas["detalle_ventas"]["id_venta"]
+                        .isin(ids_ventas)
+                    ]
+                    .copy()
+                )
+
+            # Eliminar pagos relacionados
+            if "pagos" in tablas:
+
+                tablas["pagos"] = (
+                    tablas["pagos"]
+                    [
+                        ~tablas["pagos"]["id_venta"]
+                        .isin(ids_ventas)
+                    ]
+                    .copy()
+                )
+
+        else:
+
+            print("Ventas futuras: 0")
+
+    # COMPRAS FUTURAS
+
+    if "compras" in tablas:
+
+        compras = tablas["compras"]
+
+        mascara = compras["fecha_compra"] > FECHA_CORTE
+
+        cantidad = mascara.sum()
+
+        if cantidad > 0:
+
+            ids_compras = compras.loc[
+                mascara,
+                "id_compra"
+            ].tolist()
+
+            print(
+                f"Compras futuras eliminadas: {cantidad}"
+            )
+
+            tablas["compras"] = compras.loc[
+                ~mascara
+            ].copy()
+
+            # Eliminar detalles relacionados
+            if "detalle_compras" in tablas:
+
+                tablas["detalle_compras"] = (
+                    tablas["detalle_compras"]
+                    [
+                        ~tablas["detalle_compras"]["id_compra"]
+                        .isin(ids_compras)
+                    ]
+                    .copy()
+                )
+
+        else:
+
+            print("Compras futuras: 0")
+
+
+# VALIDACIÓN DE VENTAS
+
+def validar_ventas(tablas):
+
+    print("\n" + "=" * 60)
+    print("VALIDACIÓN DE VENTAS")
+    print("=" * 60)
+
+    ventas = tablas["ventas"]
+
+    resultados = []
+
+    calculado = (
+        ventas["subtotal"]
+        + ventas["impuesto"]
+        - ventas["descuento"]
+    )
+
+    diferencia = (
+        calculado - ventas["total"]
+    ).abs()
+
+    errores_total = diferencia > 0.01
+
+    cantidad_errores = errores_total.sum()
+
+    print(
+        f"Ventas con total inconsistente: "
+        f"{cantidad_errores}"
+    )
+
+    resultados.append({
+        "tabla": "ventas",
+        "validacion": "subtotal + impuesto - descuento = total",
+        "registros_afectados": int(cantidad_errores),
+        "estado": "OK" if cantidad_errores == 0 else "REVISAR"
+    })
+
+
+    estados_validos = {1, 2, 3}
+
+    errores_estado = ~ventas[
+        "id_estado_venta"
+    ].isin(estados_validos)
+
+    cantidad_estado = errores_estado.sum()
+
+    print(
+        f"Ventas con estado inválido: "
+        f"{cantidad_estado}"
+    )
+
+    resultados.append({
+        "tabla": "ventas",
+        "validacion": "id_estado_venta válido",
+        "registros_afectados": int(cantidad_estado),
+        "estado": "OK" if cantidad_estado == 0 else "REVISAR"
+    })
+
+    return resultados
+
+
+# VALIDACIÓN DE DETALLE DE VENTAS
+
+def validar_detalle_ventas(tablas):
+
+    print("\n" + "=" * 60)
+    print("VALIDACIÓN DE DETALLE DE VENTAS")
+    print("=" * 60)
+
+    df = tablas["detalle_ventas"]
+
+    resultados = []
+
+    # CANTIDAD
+
+    errores_cantidad = df["cantidad"] <= 0
+
+    cantidad = errores_cantidad.sum()
+
+    print(
+        f"Detalles con cantidad inválida: {cantidad}"
+    )
+
+    resultados.append({
+        "tabla": "detalle_ventas",
+        "validacion": "cantidad > 0",
+        "registros_afectados": int(cantidad),
+        "estado": "OK" if cantidad == 0 else "REVISAR"
+    })
+
+    # PRECIO
+
+    errores_precio = df["precio_unitario"] < 0
+
+    cantidad = errores_precio.sum()
+
+    print(
+        f"Detalles con precio negativo: {cantidad}"
+    )
+
+    resultados.append({
+        "tabla": "detalle_ventas",
+        "validacion": "precio_unitario >= 0",
+        "registros_afectados": int(cantidad),
+        "estado": "OK" if cantidad == 0 else "REVISAR"
+    })
+
+    # SUBTOTAL
+
+    calculado = (
+        df["cantidad"]
+        * df["precio_unitario"]
+        - df["descuento"]
+    )
+
+    diferencia = (
+        calculado - df["subtotal"]
+    ).abs()
+
+    errores_subtotal = diferencia > 0.01
+
+    cantidad = errores_subtotal.sum()
+
+    print(
+        f"Detalles con subtotal inconsistente: {cantidad}"
+    )
+
+    resultados.append({
+        "tabla": "detalle_ventas",
+        "validacion": "cantidad * precio_unitario - descuento = subtotal",
+        "registros_afectados": int(cantidad),
+        "estado": "OK" if cantidad == 0 else "REVISAR"
+    })
+
+    return resultados
+
+
+# VALIDACIÓN DE COMPRAS
+
+def validar_compras(tablas):
+
+    print("\n" + "=" * 60)
+    print("VALIDACIÓN DE COMPRAS")
+    print("=" * 60)
+
+    compras = tablas["compras"]
+
+    resultados = []
+
+    calculado = (
+        compras["subtotal"]
+        + compras["impuesto"]
+        - compras["descuento"]
+    )
+
+    diferencia = (
+        calculado - compras["total"]
+    ).abs()
+
+    errores = diferencia > 0.01
+
+    cantidad = errores.sum()
+
+    print(
+        f"Compras con total inconsistente: {cantidad}"
+    )
+
+    resultados.append({
+        "tabla": "compras",
+        "validacion": "subtotal + impuesto - descuento = total",
+        "registros_afectados": int(cantidad),
+        "estado": "OK" if cantidad == 0 else "REVISAR"
+    })
+
+    return resultados
+
+
+# VALIDACIÓN DE DETALLE DE COMPRAS
+
+def validar_detalle_compras(tablas):
+
+    print("\n" + "=" * 60)
+    print("VALIDACIÓN DE DETALLE DE COMPRAS")
+    print("=" * 60)
+
+    df = tablas["detalle_compras"]
+
+    resultados = []
+
+    # CANTIDAD
+
+    errores = df["cantidad"] <= 0
+
+    cantidad = errores.sum()
+
+    print(
+        f"Detalles con cantidad inválida: {cantidad}"
+    )
+
+    resultados.append({
+        "tabla": "detalle_compras",
+        "validacion": "cantidad > 0",
+        "registros_afectados": int(cantidad),
+        "estado": "OK" if cantidad == 0 else "REVISAR"
+    })
+
+    # PRECIO
+
+    errores = df["precio_unitario"] < 0
+
+    cantidad = errores.sum()
+
+    print(
+        f"Detalles con precio negativo: {cantidad}"
+    )
+
+    resultados.append({
+        "tabla": "detalle_compras",
+        "validacion": "precio_unitario >= 0",
+        "registros_afectados": int(cantidad),
+        "estado": "OK" if cantidad == 0 else "REVISAR"
+    })
+
+    # SUBTOTAL
+
+    calculado = (
+        df["cantidad"]
+        * df["precio_unitario"]
+        - df["descuento"]
+    )
+
+    diferencia = (
+        calculado - df["subtotal"]
+    ).abs()
+
+    errores = diferencia > 0.01
+
+    cantidad = errores.sum()
+
+    print(
+        f"Detalles con subtotal inconsistente: {cantidad}"
+    )
+
+    resultados.append({
+        "tabla": "detalle_compras",
+        "validacion": "cantidad * precio_unitario - descuento = subtotal",
+        "registros_afectados": int(cantidad),
+        "estado": "OK" if cantidad == 0 else "REVISAR"
+    })
+
+    return resultados
+
+
+# VALIDACIÓN DE PAGOS
+
+def validar_pagos(tablas):
+
+    print("\n" + "=" * 60)
+    print("VALIDACIÓN DE PAGOS")
+    print("=" * 60)
+
+    df = tablas["pagos"]
+
+    resultados = []
+
+    # MONTO
+
+    errores = df["monto"] <= 0
+
+    cantidad = errores.sum()
+
+    print(
+        f"Pagos con monto inválido: {cantidad}"
+    )
+
+    resultados.append({
+        "tabla": "pagos",
+        "validacion": "monto > 0",
+        "registros_afectados": int(cantidad),
+        "estado": "OK" if cantidad == 0 else "REVISAR"
+    })
+
+    # ESTADOS
+
+    estados_validos = {1, 2, 3}
+
+    errores = ~df[
+        "id_estado_pago"
+    ].isin(estados_validos)
+
+    cantidad = errores.sum()
+
+    print(
+        f"Pagos con estado inválido: {cantidad}"
+    )
+
+    resultados.append({
+        "tabla": "pagos",
+        "validacion": "id_estado_pago válido",
+        "registros_afectados": int(cantidad),
+        "estado": "OK" if cantidad == 0 else "REVISAR"
+    })
+
+    return resultados
+
+
+# VALIDACIÓN DE RELACIONES
+
+def validar_relaciones(tablas):
+
+    print("\n" + "=" * 60)
+    print("VALIDACIÓN DE RELACIONES")
+    print("=" * 60)
+
+    resultados = []
+
+    # DETALLE_VENTAS → VENTAS
+
+    detalles = tablas["detalle_ventas"]
+    ventas = tablas["ventas"]
+
+    ids_ventas = set(
+        ventas["id_venta"]
+    )
+
+    errores = ~detalles[
+        "id_venta"
+    ].isin(ids_ventas)
+
+    cantidad = errores.sum()
+
+    print(
+        f"Detalles de venta sin venta asociada: {cantidad}"
+    )
+
+    resultados.append({
+        "tabla": "detalle_ventas",
+        "validacion": "id_venta existente",
+        "registros_afectados": int(cantidad),
+        "estado": "OK" if cantidad == 0 else "REVISAR"
+    })
+
+
+    # PAGOS → VENTAS
+
+    pagos = tablas["pagos"]
+
+    errores = ~pagos[
+        "id_venta"
+    ].isin(ids_ventas)
+
+    cantidad = errores.sum()
+
+    print(
+        f"Pagos sin venta asociada: {cantidad}"
+    )
+
+    resultados.append({
+        "tabla": "pagos",
+        "validacion": "id_venta existente",
+        "registros_afectados": int(cantidad),
+        "estado": "OK" if cantidad == 0 else "REVISAR"
+    })
+
+
+    # DETALLE_COMPRAS → COMPRAS
+
+    detalles_compras = tablas["detalle_compras"]
+    compras = tablas["compras"]
+
+    ids_compras = set(
+        compras["id_compra"]
+    )
+
+    errores = ~detalles_compras[
+        "id_compra"
+    ].isin(ids_compras)
+
+    cantidad = errores.sum()
+
+    print(
+        f"Detalles de compra sin compra asociada: {cantidad}"
+    )
+
+    resultados.append({
+        "tabla": "detalle_compras",
+        "validacion": "id_compra existente",
+        "registros_afectados": int(cantidad),
+        "estado": "OK" if cantidad == 0 else "REVISAR"
+    })
+
+
+    # DETALLE_VENTAS → PRODUCTOS
+
+    detalles = tablas["detalle_ventas"]
+    productos = tablas["productos"]
+
+    ids_productos = set(
+        productos["id_producto"]
+    )
+
+    errores = ~detalles[
+        "id_producto"
+    ].isin(ids_productos)
+
+    cantidad = errores.sum()
+
+    print(
+        f"Detalles de venta con producto inexistente: {cantidad}"
+    )
+
+    resultados.append({
+        "tabla": "detalle_ventas",
+        "validacion": "id_producto existente",
+        "registros_afectados": int(cantidad),
+        "estado": "OK" if cantidad == 0 else "REVISAR"
+    })
+
+
+    # DETALLE_COMPRAS → PRODUCTOS
+
+    errores = ~detalles_compras[
+        "id_producto"
+    ].isin(ids_productos)
+
+    cantidad = errores.sum()
+
+    print(
+        f"Detalles de compra con producto inexistente: {cantidad}"
+    )
+
+    resultados.append({
+        "tabla": "detalle_compras",
+        "validacion": "id_producto existente",
+        "registros_afectados": int(cantidad),
+        "estado": "OK" if cantidad == 0 else "REVISAR"
+    })
+
+
+    return resultados
+
+
+# GUARDAR DATOS PROCESADOS
+
+def guardar_tablas(tablas):
+
+    print("\n" + "=" * 60)
+    print("GUARDANDO DATOS PROCESADOS")
+    print("=" * 60)
+
+    for nombre, df in tablas.items():
+
+        ruta = PROCESSED_DIR / f"{nombre}.csv"
+
+        df.to_csv(
+            ruta,
+            index=False,
+            encoding="utf-8"
+        )
+
+        print(
+            f"{nombre}.csv → {len(df)} filas"
+        )
+
+
+# GUARDAR REPORTE DE CALIDAD
+
+def guardar_reporte(resultados):
+
+    if not resultados:
+        return
+
+    reporte = pd.DataFrame(resultados)
+
+    ruta = PROCESSED_DIR / "reporte_calidad.csv"
+
+    reporte.to_csv(
+        ruta,
+        index=False,
+        encoding="utf-8"
+    )
+
+    print(
+        f"\nReporte de calidad guardado en:"
+        f"\n  {ruta}"
+    )
+
+
+# RESUMEN FINAL
+
+def mostrar_resumen(tablas):
+
+    print("\n" + "=" * 60)
+    print("RESUMEN DEL PROCESAMIENTO")
+    print("=" * 60)
+
+    total_filas = 0
+
+    for nombre, df in tablas.items():
+
+        filas = len(df)
+
+        total_filas += filas
+
+        print(
+            f"{nombre:<25} {filas:>6} filas"
+        )
+
+    print("-" * 60)
+
+    print(
+        f"{'TOTAL':<25} {total_filas:>6} filas"
+    )
+
+    print(
+        f"\nFecha de corte: "
+        f"{FECHA_CORTE.date()}"
+    )
+
+    print(
+        f"Archivos guardados en:\n"
+        f"{PROCESSED_DIR}"
+    )
+
+
+# MAIN
+
+def main():
+
+    print("=" * 60)
+    print("LIMPIEZA Y VALIDACIÓN DE DATOS")
+    print("=" * 60)
+
+    print(
+        f"\nFecha de ejecución: "
+        f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    )
+
+    print(
+        f"Fecha de corte: "
+        f"{FECHA_CORTE.date()}"
+    )
+
+    # 1. CARGAR
+
+    tablas = cargar_tablas()
+
+    if not tablas:
+
+        print("\nNo se encontraron datos para procesar.")
+
+        return
+
+    # 2. LIMPIAR
+
+    print("\n" + "=" * 60)
+    print("LIMPIEZA DE TIPOS Y FORMATOS")
+    print("=" * 60)
+
+    tablas = limpiar_tablas(tablas)
+
+    print("Tipos y formatos procesados.")
+
+    # 3. FUTUROS
+
+    eliminar_futuros(tablas)
+
+    # 4. VALIDACIONES
+
+    resultados = []
+
+    resultados.extend(
+        validar_ventas(tablas)
+    )
+
+    resultados.extend(
+        validar_detalle_ventas(tablas)
+    )
+
+    resultados.extend(
+        validar_compras(tablas)
+    )
+
+    resultados.extend(
+        validar_detalle_compras(tablas)
+    )
+
+    resultados.extend(
+        validar_pagos(tablas)
+    )
+
+    resultados.extend(
+        validar_relaciones(tablas)
+    )
+
+    # 5. GUARDAR
+
+    guardar_tablas(tablas)
+
+    guardar_reporte(resultados)
+
+    # 6. RESUMEN
+
+    mostrar_resumen(tablas)
+
+    print("\n" + "=" * 60)
+    print("PROCESO TERMINADO")
+    print("=" * 60)
+
+
+if __name__ == "__main__":
+    main()
