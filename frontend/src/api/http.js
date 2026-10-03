@@ -1,5 +1,5 @@
 const API_URL = (
-  import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
+  `${import.meta.env.VITE_API_URL}/api` || 'http://localhost:4000/api'
 ).replace(/\/$/, '');
 
 export async function api(path, options = {}) {
